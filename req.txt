@@ -1,0 +1,81 @@
+Setup below in debain vm
+debain 12, csf firewall, apache reverse proxy , oracle jdk 11 , wildlfy 20 , mysql 8.x , phpmyadmin`
+
+step:1 Downloaded oracle-vituralbox(version 7.*) to host commands to run from virtual box 
+       ---(sudo dpkg -i <name of file>) if any error occures run ---(sudo apt _f install)
+       
+step:2 Download debain-iso file of version 12. and select this iso path while creating debain-   vm.    now ssh to this vm. install required services like ssh,ufw,net_tools.   
+
+step:3 Oracle java installation in debain 
+       download oracle-java.11 archive or deb file and untar it ---(sudo tar -xzf filename)
+       copy java file to /opt/<>   after run 
+       ---(sudo update-alternatives --install /usr/bin/java java /opt/jdk-11/bin/java 1)
+       ---(sudo update-alternatives --install /usr/bin/javac javac /opt/jdk-11/bin/javac 1)
+       to change between java versions modify here ---(update-alternatives --config java)
+       
+       There is anthour way to install with profile.d
+       1. sudo mv jdk-11.0.* /opt/jdk-11 2.sudo nano /etc/profile.d/jdk11.sh
+        3.export JAVA_HOME=/opt/jdk-11
+          export PATH=$JAVA_HOME/bin:$PATH
+
+
+steps:4 CSF firewall installation
+        install required package 
+        1. --- (sudo apt update
+            sudo apt install -y perl libio-socket-ssl-perl libnet-libidn-perl \
+            libcrypt-ssleay-perl libio-socket-inet6-perl libsocket6-perl unzip wget)
+        2.---(cd /usr/src
+          sudo wget https://download.configserver.com/csf.tgz
+          sudo tar -xzf csf.tgz
+          cd csf)--
+        3.  ---(sudo sh install.sh) run thi to install
+        4. verify with ---(sudo perl /usr/local/csf/bin/csftest.pl)
+        
+        #by default csf runs on test mode so,modify it ---(TESTING = "1" to "0")
+       
+        5. we should restert service ---(sudo csf -r) 
+        
+        6. And we can allow and block ports by modifying in csf.conf ---(sudo nano /etc/csf/csf.conf)
+        
+
+steps:5 Wildfy (20.0.1) installation
+        1. For security purpose create user for wildfy and group 
+        2. Download wildfy tar file from wildfy.org and untar
+        2. move to opt dir ---(sudo mv wildfly-20.0.1.Final/* /opt/wildfly/)
+        3.give ownership of wildfy to previously created user ---(sudo chown -R         wildfly:wildfly /opt/wildfly)
+        4. sudo mkdir -p /etc/wildfly
+        5. adding service, config_file, launch.sh
+        (sudo cp /opt/wildfly/docs/contrib/scripts/systemd/wildfly.conf /etc/wildfly/)
+        (sudo cp /opt/wildfly/docs/contrib/scripts/systemd/wildfly.service /etc/systemd/system/)
+        (sudo cp /opt/wildfly/docs/contrib/scripts/systemd/launch.sh /opt/wildfly/bin/)
+        (sudo chmod +x /opt/wildfly/bin/launch.sh)
+        
+        6. Edit in wildflyservice file 
+        6. Edit here ---(nano /opt/wildfly/bin/launch.sh) as which means seting_ip 
+         
+          
+        
+        
+        
+Step:6 Msql 8.x and phpadmin 
+       1.Download MySQL APT Repository Installer --( wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb)
+       2.Install the APT Config Package ---(sudo dpkg -i mysql-apt-config_0.8.29-1_all.deb)
+       3.sudo apt update, sudo apt install mysql-server -y, sudo systemctl start mysql, sudo systemctl enable mysql
+       4. sudo mysql_secure_installation completes installation.
+       
+       5.Install phpMyAdmin  ---(sudo apt install php -y)  ---(sudo apt install phpmyadmin -y)
+
+
+
+
+
+       
+
+  
+
+  
+          
+    
+
+
+
