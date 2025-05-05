@@ -1,0 +1,3 @@
+ansible  
+
+To create an Ansible playbook that provisions AWS resources from scratch, including IAM roles with read/write access to S3 and RDS, an EC2 instance with associated VPC, subnet, SSH key, and security group allowing SSH, and attaches the IAM role to the EC2 instance, we’ll organize the solution using Ansible roles for modularity. The playbook will also ensure the SSH key is downloaded locally. Below, I’ll provide the complete setup, including the directory structure, role definitions, and commands to create and run the playbook.
