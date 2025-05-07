@@ -1,0 +1,49 @@
+---
+- name: Create S3 Bucket with Public Access
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    region: us-east-1
+    bucket_name: ansible-public-bucket-{{ 999999999 | random | string }}
+
+  tasks:
+    - name: Create S3 Bucket
+      amazon.aws.s3_bucket:
+        name: "{{ bucket_name }}"
+        region: "{{ region }}"
+        state: present
+        tags:
+          Name: ansible-public-bucket
+      register: s3_bucket
+      retries: 3
+      delay: 5
+      until: s3_bucket is not failed
+      failed_when: s3_bucket.failed
+    - name: Wait until bucket is available
+      ansible.builtin.command:
+        cmd: aws s3api head-bucket --bucket {{ bucket_name }} --region {{ region }}
+      register: wait_result
+      retries: 5
+      delay: 3
+      until: wait_result.rc == 0
+      failed_when: wait_result.rc != 0 and 'Not Found' not in wait_result.stderr
+      changed_when: false
+
+
+    - name: Pause to allow S3 bucket to become available
+      ansible.builtin.pause:
+        seconds: 10
+      when: s3_bucket is defined and s3_bucket.changed
+     
+    - name: Apply Public Read Bucket Policy
+      ansible.builtin.command:
+        cmd: >
+          aws s3api put-bucket-policy
+          --bucket {{ bucket_name }}
+          --region {{ region }}
+          --policy '{{ bucket_policy | to_json }}'
+      register: bucket_policy_result
+      failed_when: bucket_policy_result.rc != 0
+      changed_when: bucket_policy_result.rc == 0
+      when: bucket_policy is defined
