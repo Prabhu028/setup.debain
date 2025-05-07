@@ -1,0 +1,50 @@
+---
+- name: Create IAM Role for EC2
+  hosts: localhost
+  gather_facts: false
+  vars:
+    region: us-east-1
+    role_name: EC2Role
+    instance_profile_name: EC2InstanceProfile
+  tasks:
+    - name: Create IAM role for EC2
+      amazon.aws.iam_role:
+        name: "{{ role_name }}"
+        assume_role_policy_document: |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": { "Service": "ec2.amazonaws.com" },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          }
+        state: present
+        region: "{{ region }}"
+      register: iam_role
+
+    - name: Attach managed policy to IAM role
+      ansible.builtin.command:
+        cmd: aws iam attach-role-policy --role-name {{ role_name }} --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      register: policy_attachment
+      failed_when: policy_attachment.rc != 0
+      changed_when: policy_attachment.rc == 0
+      when: iam_role is defined
+
+    - name: Create IAM instance profile
+      amazon.aws.iam_instance_profile:
+        name: "{{ instance_profile_name }}"
+        state: present
+        region: "{{ region }}"
+      register: instance_profile
+      when: iam_role is defined
+
+    - name: Add IAM role to instance profile
+      ansible.builtin.command:
+        cmd: aws iam add-role-to-instance-profile --instance-profile-name {{ instance_profile_name }} --role-name {{ role_name }}
+      register: add_role
+      failed_when: add_role.rc != 0
+      changed_when: add_role.rc == 0
+      when: instance_profile is defined and instance_profile.changed
