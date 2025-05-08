@@ -1,50 +1,40 @@
 ---
-- name: Create IAM Role for EC2
+- name: Create IAM user with username and password
   hosts: localhost
-  gather_facts: false
-  vars:
-    region: us-east-1
-    role_name: EC2Role
-    instance_profile_name: EC2InstanceProfile
+  connection: local
   tasks:
-    - name: Create IAM role for EC2
-      amazon.aws.iam_role:
-        name: "{{ role_name }}"
-        assume_role_policy_document: |
-          {
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Principal": { "Service": "ec2.amazonaws.com" },
-                "Action": "sts:AssumeRole"
-              }
-            ]
-          }
+    - name: Create IAM user
+      amazon.aws.iam_user:
+        name: ansible-1r
         state: present
-        region: "{{ region }}"
-      register: iam_role
+        password: "{{ 'MySecurePass123!' | b64encode }}"
+        wait: yes
+        wait_timeout: 120
+      register: iam_user_result
 
-    - name: Attach managed policy to IAM role
-      ansible.builtin.command:
-        cmd: aws iam attach-role-policy --role-name {{ role_name }} --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      register: policy_attachment
-      failed_when: policy_attachment.rc != 0
-      changed_when: policy_attachment.rc == 0
-      when: iam_role is defined
+    - name: Debug iam_user_result
+      debug:
+        var: iam_user_result
+      when: iam_user_result is defined
 
-    - name: Create IAM instance profile
-      amazon.aws.iam_instance_profile:
-        name: "{{ instance_profile_name }}"
+    - name: Verify IAM user exists
+      amazon.aws.iam_user:
+        name: my-iam-user
         state: present
-        region: "{{ region }}"
-      register: instance_profile
-      when: iam_role is defined
+      register: user_check
+      retries: 10
+      delay: 15
+      until: user_check is success
 
-    - name: Add IAM role to instance profile
-      ansible.builtin.command:
-        cmd: aws iam add-role-to-instance-profile --instance-profile-name {{ instance_profile_name }} --role-name {{ role_name }}
-      register: add_role
-      failed_when: add_role.rc != 0
-      changed_when: add_role.rc == 0
-      when: instance_profile is defined and instance_profile.changed
+    - name: Attach AmazonEC2FullAccess policy
+      command: aws iam attach-user-policy --user-name my-iam-user --policy-arn arn:aws:iam::aws:policy/AmazonEC2FullAccess
+      register: policy_attach
+      changed_when: policy_attach.rc == 0
+      failed_when: policy_attach.rc != 0 and 'EntityAlreadyExists' not in policy_attach.stderr
+
+    - name: Display user details
+      debug:
+        msg: |
+          IAM User: {{ iam_user_result.name | default('my-iam-user') }}
+          Console Access: Enabled (password set)
+          EC2 Access Policy: Attached (AmazonEC2FullAccess)
