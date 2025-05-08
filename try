@@ -1,0 +1,103 @@
+---
+- name: Create AWS EC2 instance with full infrastructure using existing key
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    region: us-east-1
+    vpc_cidr: "10.0.0.0/16"
+    subnet_cidr: "10.0.1.0/24"
+    instance_type: t2.micro
+    ami_id: ami-0c55b159cbfafe1f0  # Amazon Linux 2 AMI (update for your region)
+    key_name: project
+    security_group_name: ansible-ec2-sg
+    vpc_name: ansible-vpc
+    subnet_name: ansible-subnet
+    igw_name: ansible-igw
+    route_table_name: ansible-route-table
+
+  tasks:
+    - name: Create VPC
+      amazon.aws.ec2_vpc_net:
+        name: "{{ vpc_name }}"
+        cidr_block: "{{ vpc_cidr }}"
+        region: "{{ region }}"
+        state: present
+      register: vpc
+
+    - name: Create subnet
+      amazon.aws.ec2_vpc_subnet:
+        vpc_id: "{{ vpc.vpc.id }}"
+        cidr: "{{ subnet_cidr }}"
+        region: "{{ region }}"
+        az: "{{ region }}a"
+        tags:
+          Name: "{{ subnet_name }}"
+        state: present
+      register: subnet
+
+    - name: Create internet gateway
+      amazon.aws.ec2_vpc_igw:
+        vpc_id: "{{ vpc.vpc.id }}"
+        region: "{{ region }}"
+        tags:
+          Name: "{{ igw_name }}"
+        state: present
+      register: igw
+
+    - name: Create route table
+      amazon.aws.ec2_vpc_route_table:
+        vpc_id: "{{ vpc.vpc.id }}"
+        region: "{{ region }}"
+        tags:
+          Name: "{{ route_table_name }}"
+        subnets:
+          - "{{ subnet.subnet.id }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.internet_gateway.internet_gateway_id }}"
+        state: present
+      register: route_table
+
+    - name: Create security group
+      amazon.aws.ec2_group:
+        name: "{{ security_group_name }}"
+        description: Security group for Ansible EC2 instance
+        vpc_id: "{{ vpc.vpc.id }}"
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 0.0.0.0/0  # Allow SSH from anywhere (restrict for production)
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: 0.0.0.0/0  # Allow HTTP (optional)
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0  # Allow all outbound traffic
+        state: present
+      register: sg
+
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        name: ansible-ec2-instance
+        key_name: "{{ key_name }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ ami_id }}"
+        region: "{{ region }}"
+        vpc_subnet_id: "{{ subnet.subnet.id }}"
+        security_group: "{{ sg.group_id }}"
+        network:
+          assign_public_ip: true  # Enable public IP for internet access
+        wait: true
+        tags:
+          Environment: Testing
+        state: present
+      register: ec2
+
+    - name: Display instance public IP
+      ansible.builtin.debug:
+        msg: "EC2 instance created with public IP: {{ ec2.instances[0].public_ip_address }}. SSH with: ssh -i project.pem ec2-user@{{ ec2.instances[0].public_ip_address }}"
+      when: ec2.instances[0].public_ip_address is defined
