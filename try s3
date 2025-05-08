@@ -1,0 +1,22 @@
+---
+- name: Create a public S3 bucket
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Create S3 bucket with public access
+      amazon.aws.s3_bucket:
+        name: my-public-bucket-{{ 999999999999 | random | to_uuid }}
+        state: present
+        public_access:
+          block_public_acls: false
+          ignore_public_acls: false
+          block_public_policy: false
+          restrict_public_buckets: false
+        tags:
+          Name: MyPublicBucket
+          Environment: Dev
+      register: s3_bucket
+
+    - name: Display bucket creation result
+      debug:
+        msg: "Bucket {{ s3_bucket.name }} created successfully"
