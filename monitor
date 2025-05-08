@@ -1,0 +1,32 @@
+---
+- name: Create CloudWatch Events rule to monitor EC2 instance state changes
+  hosts: localhost
+  connection: local
+  vars:
+    region: us-east-1
+
+  tasks:
+    - name: Create CloudWatch Events rule for EC2 state changes
+      amazon.aws.cloudwatchevent_rule:
+        name: ec2-state-change-rule
+        region: "{{ region }}"
+        description: Monitor EC2 instance state changes
+        event_pattern: |
+          {
+            "source": ["aws.ec2"],
+            "detail-type": ["EC2 Instance State-change Notification"]
+          }
+        state: present
+      register: rule_result
+
+    - name: Debug rule_result
+      debug:
+        var: rule_result
+      when: rule_result is defined
+
+    - name: Display rule details
+      debug:
+        msg: |
+          Rule Name: {{ rule_result.name | default('ec2-state-change-rule') }}
+          Rule ARN: {{ rule_result.arn | default('Not created') }}
+          Status: {{ rule_result.state | default('Not created') }}
