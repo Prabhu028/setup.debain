@@ -1,0 +1,94 @@
+---
+- name: Create AWS EC2 instance with full infrastructure using existing key
+  hosts: localhost
+  connection: local
+  vars:
+    region: us-east-1
+    vpc_cidr: 10.0.0.0/16
+    subnet_cidr: 10.0.1.0/24
+    key_pair_name: task # Replace with your existing key pair name
+    ami_id: ami-084568db4383264d4 # Amazon Linux 2 AMI for us-east-1 (update if needed)
+
+  tasks:
+    - name: Create VPC
+      amazon.aws.ec2_vpc_net:
+        name: ansible-vpc
+        cidr_block: "{{ vpc_cidr }}"
+        region: "{{ region }}"
+        state: present
+      register: vpc_result
+
+    - name: Create subnet
+      amazon.aws.ec2_vpc_subnet:
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        cidr: "{{ subnet_cidr }}"
+        az: "{{ region }}a"
+        region: "{{ region }}"
+        tags:
+          Name: ansible-subnet
+        state: present
+      register: subnet_result
+
+    - name: Create internet gateway
+      amazon.aws.ec2_vpc_igw:
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        region: "{{ region }}"
+        tags:
+          Name: ansible-igw
+        state: present
+      register: igw_result
+
+    - name: Create route table
+      amazon.aws.ec2_vpc_route_table:
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        region: "{{ region }}"
+        tags:
+          Name: ansible-route-table
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw_result.gateway_id }}"
+        subnets:
+          - "{{ subnet_result.subnet.id }}"
+        state: present
+      register: route_table_result
+
+    - name: Create security group
+      amazon.aws.ec2_security_group:
+        name: ansible-sg
+        description: Security group for EC2 instance
+        vpc_id: "{{ vpc_result.vpc.id }}"
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 0.0.0.0/0
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+        state: present
+      register: sg_result
+
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        name: ansible-ec2
+        key_name: "{{ key_pair_name }}"
+        instance_type: t2.micro
+        image_id: "{{ ami_id }}"
+        security_groups: "{{ sg_result.group_id }}"
+        subnet_id: "{{ subnet_result.subnet.id }}"
+        region: "{{ region }}"
+        network:
+          assign_public_ip: yes
+        tags:
+          Name: ansible-ec2
+        state: present
+      register: ec2_result
+
+    - name: Display EC2 instance details
+      debug:
+        msg: |
+          EC2 Instance ID: {{ ec2_result.instances[0].instance_id }}
+          Public IP: {{ ec2_result.instances[0].public_ip_address | default('No public IP') }}
+          VPC ID: {{ vpc_result.vpc.id }}
+          Subnet ID: {{ subnet_result.subnet.id }}
